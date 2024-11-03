@@ -1413,6 +1413,9 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vmg.flags = vm_flags;
 	}
 
+	if( current->temp_mempolicy != NULL )
+		vmg.policy = current->temp_mempolicy;
+
 	vma = vma_merge_new_range(&vmg);
 	if (vma)
 		goto expanded;
@@ -1429,7 +1432,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	vma_set_range(vma, addr, end, pgoff);
 	vm_flags_init(vma, vm_flags);
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
-
+	
 	if (file) {
 		vma->vm_file = get_file(file);
 		/*
@@ -1493,6 +1496,14 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	} else {
 		vma_set_anonymous(vma);
 	}
+	
+	if (vma->vm_ops && vma->vm_ops->set_policy) {
+		error = vma->vm_ops->set_policy(vma, vmg.policy);
+		if (error)
+			goto close_and_free_vma;
+	}
+
+	vma->vm_policy = vmg.policy; 
 
 	if (map_deny_write_exec(vma, vma->vm_flags)) {
 		error = -EACCES;
@@ -1555,7 +1566,7 @@ expanded:
 	vm_flags_set(vma, VM_SOFTDIRTY);
 
 	vma_set_page_prot(vma);
-
+	current->temp_mempolicy = NULL;
 	validate_mm(mm);
 	return addr;
 

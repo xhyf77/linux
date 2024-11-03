@@ -883,6 +883,39 @@ out:
 	return ret;
 }
 
+/* Set the mmap memory policy */
+static long do_set_mmap_policy(unsigned short mode, unsigned short flags,
+			     nodemask_t *nodes)
+{
+	struct mempolicy *new;
+	NODEMASK_SCRATCH(scratch);
+	int ret;
+
+	if (!scratch)
+		return -ENOMEM;
+
+	new = mpol_new(mode, flags, nodes);
+	if (IS_ERR(new)) {
+		ret = PTR_ERR(new);
+		goto out;
+	}
+
+	task_lock(current);
+	ret = mpol_set_nodemask(new, nodes, scratch);
+	if (ret) {
+		task_unlock(current);
+		mpol_put(new);
+		goto out;
+	}
+	current->temp_mempolicy = new;
+
+	task_unlock(current);
+	ret = 0;
+out:
+	NODEMASK_SCRATCH_FREE(scratch);
+	return ret;
+}
+
 /*
  * Return nodemask for policy for get_mempolicy() query
  *
@@ -945,7 +978,6 @@ static long do_get_mempolicy(int *policy, nodemask_t *nmask,
 		task_unlock(current);
 		return 0;
 	}
-
 	if (flags & MPOL_F_ADDR) {
 		pgoff_t ilx;		/* ignored here */
 		/*
@@ -1625,6 +1657,32 @@ static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 		return err;
 
 	return do_set_mempolicy(lmode, mode_flags, &nodes);
+}
+
+/* Set next mmap vma policy */
+static long kernel_set_mmap_advise(int mode, const unsigned long __user *nmask,
+				 unsigned long maxnode)
+{
+	unsigned short mode_flags;
+	nodemask_t nodes;
+	int lmode = mode;
+	int err;
+
+	err = sanitize_mpol_flags(&lmode, &mode_flags);
+	if (err)
+		return err;
+
+	err = get_nodes(&nodes, nmask, maxnode);
+	if (err)
+		return err;
+
+	return do_set_mmap_policy(lmode, mode_flags, &nodes);
+}
+
+SYSCALL_DEFINE3(next_mmap_advise, int, mode, const unsigned long __user *, nmask,
+		unsigned long, maxnode)
+{
+	return kernel_set_mmap_advise(mode, nmask, maxnode);
 }
 
 SYSCALL_DEFINE3(set_mempolicy, int, mode, const unsigned long __user *, nmask,

@@ -543,6 +543,8 @@ asmlinkage long sys_waitid(int which, pid_t pid,
 			   int options, struct rusage __user *ru);
 asmlinkage long sys_set_tid_address(int __user *tidptr);
 asmlinkage long sys_unshare(unsigned long unshare_flags);
+asmlinkage long sys_next_mmap_advise(int mode, const unsigned long __user *nmask,
+				unsigned long maxnode);
 asmlinkage long sys_futex(u32 __user *uaddr, int op, u32 val,
 			  const struct __kernel_timespec __user *utime,
 			  u32 __user *uaddr2, u32 val3);

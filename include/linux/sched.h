@@ -1301,6 +1301,7 @@ struct task_struct {
 #ifdef CONFIG_NUMA
 	/* Protected by alloc_lock: */
 	struct mempolicy		*mempolicy;
+	struct mempolicy		*temp_mempolicy;
 	short				il_prev;
 	u8				il_weight;
 	short				pref_node_fork;
