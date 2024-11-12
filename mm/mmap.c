@@ -1432,7 +1432,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	vma_set_range(vma, addr, end, pgoff);
 	vm_flags_init(vma, vm_flags);
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
-	
+
 	if (file) {
 		vma->vm_file = get_file(file);
 		/*
@@ -1504,7 +1504,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	}
 
 	vma->vm_policy = vmg.policy; 
-
+	mpol_get(vma->vm_policy);
 	if (map_deny_write_exec(vma, vma->vm_flags)) {
 		error = -EACCES;
 		goto close_and_free_vma;
@@ -1566,6 +1566,7 @@ expanded:
 	vm_flags_set(vma, VM_SOFTDIRTY);
 
 	vma_set_page_prot(vma);
+	mpol_put(current->temp_mempolicy);
 	current->temp_mempolicy = NULL;
 	validate_mm(mm);
 	return addr;
