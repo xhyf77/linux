@@ -1374,7 +1374,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	int error = -ENOMEM;
 	VMA_ITERATOR(vmi, mm, addr);
 	VMG_STATE(vmg, mm, &vmi, addr, end, vm_flags, pgoff);
-
+	vmg.policy = NULL;
 	vmg.file = file;
 	/* Find the first overlapping VMA */
 	vma = vma_find(&vmi, end);
@@ -1497,7 +1497,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vma_set_anonymous(vma);
 	}
 	
-	if (vma->vm_ops && vma->vm_ops->set_policy) {
+	if (vma->vm_ops && vma->vm_ops->set_policy && vmg.policy != NULL ) {
 		error = vma->vm_ops->set_policy(vma, vmg.policy);
 		if (error)
 			goto close_and_free_vma;
