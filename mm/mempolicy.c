@@ -2902,12 +2902,17 @@ out:
 void mpol_put_task_policy(struct task_struct *task)
 {
 	struct mempolicy *pol;
+	struct mempolicy *temp_pol;
 
 	task_lock(task);
 	pol = task->mempolicy;
+	temp_pol = task->temp_mempolicy;
 	task->mempolicy = NULL;
+	task->temp_mempolicy = NULL;
 	task_unlock(task);
+
 	mpol_put(pol);
+	mpol_put(temp_pol);
 }
 
 static void sp_delete(struct shared_policy *sp, struct sp_node *n)
