@@ -49,6 +49,8 @@
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
 
+#include <linux/mempolicy.h>
+
 struct backing_dev_info;
 struct bdi_writeback;
 struct bio;
@@ -711,6 +713,7 @@ struct inode {
 	atomic_t		i_count;
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;
+	atomic_t		i_fcount;
 #if defined(CONFIG_IMA) || defined(CONFIG_FILE_LOCKING)
 	atomic_t		i_readcount; /* struct files open RO */
 #endif
@@ -742,7 +745,7 @@ struct inode {
 #ifdef CONFIG_FS_VERITY
 	struct fsverity_info	*i_verity_info;
 #endif
-
+	struct shared_policy	policy;		/* NUMA memory alloc policy */
 	void			*i_private; /* fs or device private pointer */
 } __randomize_layout;
 

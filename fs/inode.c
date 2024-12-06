@@ -186,6 +186,7 @@ int inode_init_always(struct super_block *sb, struct inode *inode)
 	inode->i_dir_seq = 0;
 	inode->i_rdev = 0;
 	inode->dirtied_when = 0;
+	atomic_set(&inode->i_fcount, 0);
 
 #ifdef CONFIG_CGROUP_WRITEBACK
 	inode->i_wb_frn_winner = 0;

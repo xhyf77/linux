@@ -2838,6 +2838,7 @@ retry:
 	if (!IS_ERR(inode)) {
 		inode->i_op = &ext4_file_inode_operations;
 		inode->i_fop = &ext4_file_operations;
+		mpol_shared_policy_init(&inode->policy, NULL);
 		ext4_set_aops(inode);
 		err = ext4_add_nondir(handle, dentry, &inode);
 		if (!err)

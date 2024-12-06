@@ -35,7 +35,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "truncate.h"
-
+#include<linux/atomic/atomic-instrumented.h>
 /*
  * Returns %true if the given DIO request should be attempted with DIO, or
  * %false if it should fall back to buffered I/O.
@@ -773,10 +773,39 @@ static const struct vm_operations_struct ext4_dax_vm_ops = {
 #define ext4_dax_vm_ops	ext4_file_vm_ops
 #endif
 
+#ifdef CONFIG_NUMA
+static int ext4_file_page_cache_set_policy(struct vm_area_struct *vma, struct mempolicy *mpol)
+{
+	struct inode *inode = file_inode(vma->vm_file);
+	return mpol_set_shared_policy( &inode->policy, vma, mpol);
+}
+
+static struct mempolicy *ext4_file_page_cache_get_policy(struct vm_area_struct *vma,
+					  unsigned long addr, pgoff_t *ilx)
+{
+	struct inode *inode = file_inode(vma->vm_file);
+	pgoff_t index;
+
+	/*
+	 * Bias interleave by inode number to distribute better across nodes;
+	 * but this interface is independent of which page order is used, so
+	 * supplies only that bias, letting caller apply the offset (adjusted
+	 * by page order, as in shmem_get_pgoff_policy() and get_vma_policy()).
+	 */
+	*ilx = inode->i_ino;
+	index = ((addr - vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff;
+	return mpol_shared_policy_lookup(&inode->policy, index);
+}
+#endif
+
 static const struct vm_operations_struct ext4_file_vm_ops = {
 	.fault		= filemap_fault,
 	.map_pages	= filemap_map_pages,
 	.page_mkwrite   = ext4_page_mkwrite,
+#ifdef CONFIG_NUMA
+	.set_policy     = ext4_file_page_cache_set_policy,
+	.get_policy     = ext4_file_page_cache_get_policy,
+#endif
 };
 
 static int ext4_file_mmap(struct file *file, struct vm_area_struct *vma)
@@ -800,6 +829,15 @@ static int ext4_file_mmap(struct file *file, struct vm_area_struct *vma)
 		vm_flags_set(vma, VM_HUGEPAGE);
 	} else {
 		vma->vm_ops = &ext4_file_vm_ops;
+	}
+	return 0;
+}
+
+static int ext4_flush(struct file *f, fl_owner_t id)
+{
+	if (atomic_dec_and_test(&f->f_inode->i_fcount)){
+		mpol_free_shared_policy(&f->f_inode->policy);
+		mpol_shared_policy_init(&f->f_inode->policy, NULL);
 	}
 	return 0;
 }
@@ -945,6 +983,7 @@ const struct file_operations ext4_file_operations = {
 	.fallocate	= ext4_fallocate,
 	.fop_flags	= FOP_MMAP_SYNC | FOP_BUFFER_RASYNC |
 			  FOP_DIO_PARALLEL_WRITE,
+	.flush      = ext4_flush,
 };
 
 const struct inode_operations ext4_file_inode_operations = {

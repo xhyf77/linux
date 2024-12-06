@@ -1418,6 +1418,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 			fd = PTR_ERR(f);
 		} else {
 			fd_install(fd, f);
+			atomic_inc( &f->f_inode->i_fcount);
 		}
 	}
 	putname(tmp);
