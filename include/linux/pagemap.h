@@ -17,7 +17,6 @@
 #include <linux/hugetlb_inline.h>
 
 struct folio_batch;
-
 unsigned long invalidate_mapping_pages(struct address_space *mapping,
 					pgoff_t start, pgoff_t end);
 
@@ -662,8 +661,14 @@ static inline void *detach_page_private(struct page *page)
 
 #ifdef CONFIG_NUMA
 struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order);
+struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order);
 #else
 static inline struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order)
+{
+	return folio_alloc_noprof(gfp, order);
+}
+
+struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order)
 {
 	return folio_alloc_noprof(gfp, order);
 }
@@ -671,6 +676,9 @@ static inline struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int o
 
 #define filemap_alloc_folio(...)				\
 	alloc_hooks(filemap_alloc_folio_noprof(__VA_ARGS__))
+
+#define filemap_alloc_folio_mpol(...)				\
+	alloc_hooks(filemap_alloc_folio_mpol_noprof(__VA_ARGS__))
 
 static inline struct page *__page_cache_alloc(gfp_t gfp)
 {

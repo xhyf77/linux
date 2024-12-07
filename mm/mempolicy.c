@@ -2335,6 +2335,17 @@ struct page *alloc_pages_mpol_noprof(gfp_t gfp, unsigned int order,
 	return page;
 }
 
+struct mempolicy *get_page_cache_pgoff_policy(struct inode *inode,
+			pgoff_t index, unsigned int order, pgoff_t *ilx)
+{
+	struct mempolicy *mpol;
+	/* Bias interleave by inode number to distribute better across nodes */
+	*ilx = inode->i_ino + (index >> order);
+
+	mpol = mpol_shared_policy_lookup(&inode->policy, index);
+	return mpol ? mpol : get_task_policy(current);
+}
+
 struct folio *folio_alloc_mpol_noprof(gfp_t gfp, unsigned int order,
 		struct mempolicy *pol, pgoff_t ilx, int nid)
 {

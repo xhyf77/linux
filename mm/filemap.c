@@ -1010,6 +1010,29 @@ struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order)
 	return folio_alloc_noprof(gfp, order);
 }
 EXPORT_SYMBOL(filemap_alloc_folio_noprof);
+
+struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order)
+{
+	int n;
+	struct folio *folio;
+	struct mempolicy *mpol;
+	pgoff_t ilx;
+	if (cpuset_do_page_mem_spread()) {
+		unsigned int cpuset_mems_cookie;
+		do {
+			cpuset_mems_cookie = read_mems_allowed_begin();
+			n = cpuset_mem_spread_node();
+			folio = __folio_alloc_node_noprof(gfp, order, n);
+		} while (!folio && read_mems_allowed_retry(cpuset_mems_cookie));
+
+		return folio;
+	}
+	mpol = get_page_cache_pgoff_policy( inode, index, order, &ilx);
+	folio = folio_alloc_mpol_noprof(gfp, order, mpol, ilx, numa_node_id());
+	mpol_cond_put(mpol);
+
+	return folio;
+}
 #endif
 
 /*
@@ -1882,7 +1905,7 @@ struct folio *__filemap_get_folio(struct address_space *mapping, pgoff_t index,
 		fgf_t fgp_flags, gfp_t gfp)
 {
 	struct folio *folio;
-
+	struct inode *inode = mapping->host;
 repeat:
 	folio = filemap_get_entry(mapping, index);
 	if (xa_is_value(folio))
@@ -1942,14 +1965,18 @@ no_page:
 		/* If we're not aligned, allocate a smaller folio */
 		if (index & ((1UL << order) - 1))
 			order = __ffs(index);
-
 		do {
 			gfp_t alloc_gfp = gfp;
 
 			err = -ENOMEM;
 			if (order > min_order)
 				alloc_gfp |= __GFP_NORETRY | __GFP_NOWARN;
-			folio = filemap_alloc_folio(alloc_gfp, order);
+			if( inode->policy.root.rb_node != NULL ){
+				folio = filemap_alloc_folio_mpol( inode , index , alloc_gfp , order );
+			}
+			else{
+				folio = filemap_alloc_folio(alloc_gfp, order);
+			}
 			if (!folio)
 				continue;
 
