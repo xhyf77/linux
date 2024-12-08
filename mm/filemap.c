@@ -2494,9 +2494,14 @@ static int filemap_create_folio(struct file *file,
 	struct folio *folio;
 	int error;
 	unsigned int min_order = mapping_min_folio_order(mapping);
-	pgoff_t index;
-
-	folio = filemap_alloc_folio(mapping_gfp_mask(mapping), min_order);
+	pgoff_t index = (pos >> (PAGE_SHIFT + min_order)) << min_order;
+	struct inode *inode = mapping->host;
+	if( inode->policy.root.rb_node != NULL ){
+		folio = filemap_alloc_folio_mpol( inode , index , mapping_gfp_mask(mapping) , min_order );
+	}
+	else{
+		folio = filemap_alloc_folio(mapping_gfp_mask(mapping), min_order);
+	}
 	if (!folio)
 		return -ENOMEM;
 
@@ -2514,7 +2519,6 @@ static int filemap_create_folio(struct file *file,
 	 * well to keep locking rules simple.
 	 */
 	filemap_invalidate_lock_shared(mapping);
-	index = (pos >> (PAGE_SHIFT + min_order)) << min_order;
 	error = filemap_add_folio(mapping, folio, index,
 			mapping_gfp_constraint(mapping, GFP_KERNEL));
 	if (error == -EEXIST)
@@ -3811,11 +3815,16 @@ static struct folio *do_read_cache_folio(struct address_space *mapping,
 repeat:
 	folio = filemap_get_folio(mapping, index);
 	if (IS_ERR(folio)) {
-		folio = filemap_alloc_folio(gfp,
-					    mapping_min_folio_order(mapping));
+		index = mapping_align_index(mapping, index);
+		struct inode *inode = mapping->host;
+		if( inode->policy.root.rb_node != NULL ){
+			folio = filemap_alloc_folio_mpol( inode , index , gfp , mapping_min_folio_order(mapping));
+		}
+		else{
+			folio = filemap_alloc_folio(gfp,mapping_min_folio_order(mapping));
+		}
 		if (!folio)
 			return ERR_PTR(-ENOMEM);
-		index = mapping_align_index(mapping, index);
 		err = filemap_add_folio(mapping, folio, index, gfp);
 		if (unlikely(err)) {
 			folio_put(folio);

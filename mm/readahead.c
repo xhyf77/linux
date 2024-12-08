@@ -747,6 +747,7 @@ void readahead_expand(struct readahead_control *ractl,
 		      loff_t new_start, size_t new_len)
 {
 	struct address_space *mapping = ractl->mapping;
+	struct inode *inode = ractl->mapping->host;
 	struct file_ra_state *ra = ractl->ra;
 	pgoff_t new_index, new_nr_pages;
 	gfp_t gfp_mask = readahead_gfp_mask(mapping);
@@ -767,12 +768,16 @@ void readahead_expand(struct readahead_control *ractl,
 
 		if (folio && !xa_is_value(folio))
 			return; /* Folio apparently present */
-
-		folio = filemap_alloc_folio(gfp_mask, min_order);
+        index = mapping_align_index(mapping, index);
+		if( inode->policy.root.rb_node != NULL ){
+			folio = filemap_alloc_folio_mpol( inode , index , gfp_mask , min_order );
+		}
+		else{
+			folio = filemap_alloc_folio(gfp_mask, min_order);
+		}
 		if (!folio)
 			return;
 
-		index = mapping_align_index(mapping, index);
 		if (filemap_add_folio(mapping, folio, index, gfp_mask) < 0) {
 			folio_put(folio);
 			return;
@@ -797,11 +802,16 @@ void readahead_expand(struct readahead_control *ractl,
 		if (folio && !xa_is_value(folio))
 			return; /* Folio apparently present */
 
-		folio = filemap_alloc_folio(gfp_mask, min_order);
+        index = mapping_align_index(mapping, index);
+		if( inode->policy.root.rb_node != NULL ){
+			folio = filemap_alloc_folio_mpol( inode , index , gfp_mask , min_order );
+		}
+		else{
+			folio = filemap_alloc_folio(gfp_mask, min_order);
+		}
 		if (!folio)
 			return;
 
-		index = mapping_align_index(mapping, index);
 		if (filemap_add_folio(mapping, folio, index, gfp_mask) < 0) {
 			folio_put(folio);
 			return;
