@@ -19,6 +19,7 @@
  *	(jj@sunsite.ms.mff.cuni.cz)
  */
 
+#include "linux/mm.h"
 #include <linux/time.h>
 #include <linux/fs.h>
 #include <linux/iomap.h>
@@ -776,6 +777,7 @@ static const struct vm_operations_struct ext4_dax_vm_ops = {
 #ifdef CONFIG_NUMA
 static int ext4_file_page_cache_set_policy(struct vm_area_struct *vma, struct mempolicy *mpol)
 {
+	if( !(vma->vm_flags & VM_SHARED ) ) return 0;
 	struct inode *inode = file_inode(vma->vm_file);
 	return mpol_set_shared_policy( &inode->policy, vma, mpol);
 }
@@ -783,9 +785,11 @@ static int ext4_file_page_cache_set_policy(struct vm_area_struct *vma, struct me
 static struct mempolicy *ext4_file_page_cache_get_policy(struct vm_area_struct *vma,
 					  unsigned long addr, pgoff_t *ilx)
 {
+	if( !(vma->vm_flags & VM_SHARED ) ){
+		return vma->vm_policy;
+	}
 	struct inode *inode = file_inode(vma->vm_file);
 	pgoff_t index;
-
 	/*
 	 * Bias interleave by inode number to distribute better across nodes;
 	 * but this interface is independent of which page order is used, so
