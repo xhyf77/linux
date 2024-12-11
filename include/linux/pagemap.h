@@ -668,7 +668,7 @@ static inline struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int o
 	return folio_alloc_noprof(gfp, order);
 }
 
-struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order)
+static inline struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order)
 {
 	return folio_alloc_noprof(gfp, order);
 }

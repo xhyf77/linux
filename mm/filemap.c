@@ -1971,7 +1971,7 @@ no_page:
 			err = -ENOMEM;
 			if (order > min_order)
 				alloc_gfp |= __GFP_NORETRY | __GFP_NOWARN;
-			if( inode->policy.root.rb_node != NULL ){
+			if( is_inode_have_mempolicy(inode) ){
 				folio = filemap_alloc_folio_mpol( inode , index , alloc_gfp , order );
 			}
 			else{
@@ -2496,7 +2496,7 @@ static int filemap_create_folio(struct file *file,
 	unsigned int min_order = mapping_min_folio_order(mapping);
 	pgoff_t index = (pos >> (PAGE_SHIFT + min_order)) << min_order;
 	struct inode *inode = mapping->host;
-	if( inode->policy.root.rb_node != NULL ){
+	if( is_inode_have_mempolicy(inode) ){
 		folio = filemap_alloc_folio_mpol( inode , index , mapping_gfp_mask(mapping) , min_order );
 	}
 	else{
@@ -3817,7 +3817,7 @@ repeat:
 	if (IS_ERR(folio)) {
 		index = mapping_align_index(mapping, index);
 		struct inode *inode = mapping->host;
-		if( inode->policy.root.rb_node != NULL ){
+		if( is_inode_have_mempolicy(inode) ){
 			folio = filemap_alloc_folio_mpol( inode , index , gfp , mapping_min_folio_order(mapping));
 		}
 		else{

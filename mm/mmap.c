@@ -1413,9 +1413,10 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vmg.flags = vm_flags;
 	}
 
-	if( current->temp_mempolicy != NULL )
+#ifdef CONFIG_NUMA
+	if( is_temppolicy_null(current) )
 		vmg.policy = current->temp_mempolicy;
-
+#endif
 	vma = vma_merge_new_range(&vmg);
 	if (vma)
 		goto expanded;
@@ -1496,15 +1497,17 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	} else {
 		vma_set_anonymous(vma);
 	}
-	
+
+#ifdef CONFIG_NUMA
 	if (vma->vm_ops && vma->vm_ops->set_policy && vmg.policy != NULL ) {
 		error = vma->vm_ops->set_policy(vma, vmg.policy);
 		if (error)
 			goto close_and_free_vma;
 	}
-
 	vma->vm_policy = vmg.policy; 
 	mpol_get(vma->vm_policy);
+#endif
+
 	if (map_deny_write_exec(vma, vma->vm_flags)) {
 		error = -EACCES;
 		goto close_and_free_vma;
@@ -1566,8 +1569,10 @@ expanded:
 	vm_flags_set(vma, VM_SOFTDIRTY);
 
 	vma_set_page_prot(vma);
+#ifdef CONFIG_NUMA
 	mpol_put(current->temp_mempolicy);
 	current->temp_mempolicy = NULL;
+#endif
 	validate_mm(mm);
 	return addr;
 

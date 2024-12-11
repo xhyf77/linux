@@ -3725,5 +3725,14 @@ static inline bool vfs_empty_path(int dfd, const char __user *path)
 }
 
 bool generic_atomic_write_valid(struct iov_iter *iter, loff_t pos);
+#ifdef CONFIG_NUMA
+static inline bool is_inode_have_mempolicy( struct inode *inode ){
+	return inode->policy.root.rb_node != NULL;
+}
+#else
+static inline bool is_inode_have_mempolicy( struct inode *inode ){
+	return false;
+}
+#endif
 
 #endif /* _LINUX_FS_H */
