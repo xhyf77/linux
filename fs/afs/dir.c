@@ -321,7 +321,7 @@ expand:
 	while (i < nr_pages) {
 		struct folio *folio;
 
-		folio = filemFap_get_folio(mapping, i);
+		folio = filemap_get_folio(mapping, i);
 		if (IS_ERR(folio)) {
 			if (test_and_clear_bit(AFS_VNODE_DIR_VALID, &dvnode->flags))
 				afs_stat_v(dvnode, n_inval);
