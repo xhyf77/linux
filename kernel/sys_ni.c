@@ -352,7 +352,7 @@ COND_SYSCALL_COMPAT(ppoll_time32);
 COND_SYSCALL(utimensat_time32);
 COND_SYSCALL(clock_adjtime32);
 
-//new syscall 463 to set mempolicy for the next mmap/shmget
+/* Set a NUMA policy for the next mapping attempt. */
 COND_SYSCALL(next_mmap_advise);
 /*
  * The syscalls below are not found in include/uapi/asm-generic/unistd.h

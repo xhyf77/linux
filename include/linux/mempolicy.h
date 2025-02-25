@@ -3,7 +3,6 @@
  * NUMA memory policies for Linux.
  * Copyright 2003,2004 Andi Kleen SuSE Labs
  */
-#include "sched.h"
 #ifndef _LINUX_MEMPOLICY_H
 #define _LINUX_MEMPOLICY_H 1
 
@@ -16,6 +15,7 @@
 #include <uapi/linux/mempolicy.h>
 
 struct mm_struct;
+struct task_struct;
 
 #define NO_INTERLEAVE_INDEX (-1UL)	/* use task il_prev for interleaving */
 
@@ -154,10 +154,6 @@ static inline void check_highest_zone(enum zone_type k)
 		policy_zone = k;
 }
 
-static inline bool is_temppolicy_null( struct task_struct *task ){
-	return task->temp_mempolicy != NULL;
-}
-
 int do_migrate_pages(struct mm_struct *mm, const nodemask_t *from,
 		     const nodemask_t *to, int flags);
 
@@ -185,10 +181,6 @@ extern bool apply_policy_zone(struct mempolicy *policy, enum zone_type zone);
 #else
 
 struct mempolicy {};
-
-static inline bool is_temppolicy_null( struct task_struct *task ){
-	return false;
-}
 
 static inline struct mempolicy *get_task_policy(struct task_struct *p)
 {

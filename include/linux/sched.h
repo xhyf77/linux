@@ -1302,6 +1302,7 @@ struct task_struct {
 	/* Protected by alloc_lock: */
 	struct mempolicy		*mempolicy;
 	struct mempolicy		*temp_mempolicy;
+	bool				temp_mempolicy_pending;
 	short				il_prev;
 	u8				il_weight;
 	short				pref_node_fork;

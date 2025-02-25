@@ -11,6 +11,7 @@
 
 struct vm_area_struct;
 struct mempolicy;
+struct inode;
 
 /* Convert GFP flags to their corresponding migrate type */
 #define GFP_MOVABLE_MASK (__GFP_RECLAIMABLE|__GFP_MOVABLE)

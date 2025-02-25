@@ -648,6 +648,14 @@ struct vm_operations_struct {
 	int (*set_policy)(struct vm_area_struct *vma, struct mempolicy *new);
 
 	/*
+	 * Install a policy on the page-cache object backing @vma.  Unlike
+	 * set_policy(), this callback is not part of the mbind() VMA-policy
+	 * path; it is only used by the private next-mapping experiment.
+	 */
+	int (*set_page_cache_policy)(struct vm_area_struct *vma,
+				     struct mempolicy *new);
+
+	/*
 	 * get_policy() op must add reference [mpol_get()] to any policy at
 	 * (vma,addr) marked as MPOL_SHARED.  The shared policy infrastructure
 	 * in mm/mempolicy.c will do this automatically.

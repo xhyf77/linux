@@ -713,7 +713,6 @@ struct inode {
 	atomic_t		i_count;
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;
-	atomic_t		i_fcount;
 #if defined(CONFIG_IMA) || defined(CONFIG_FILE_LOCKING)
 	atomic_t		i_readcount; /* struct files open RO */
 #endif
@@ -745,7 +744,9 @@ struct inode {
 #ifdef CONFIG_FS_VERITY
 	struct fsverity_info	*i_verity_info;
 #endif
-	struct shared_policy	policy;		/* NUMA memory alloc policy */
+#ifdef CONFIG_NUMA
+	struct shared_policy	i_mempolicy;
+#endif
 	void			*i_private; /* fs or device private pointer */
 } __randomize_layout;
 
@@ -3725,14 +3726,5 @@ static inline bool vfs_empty_path(int dfd, const char __user *path)
 }
 
 bool generic_atomic_write_valid(struct iov_iter *iter, loff_t pos);
-#ifdef CONFIG_NUMA
-static inline bool is_inode_have_mempolicy( struct inode *inode ){
-	return inode->policy.root.rb_node != NULL;
-}
-#else
-static inline bool is_inode_have_mempolicy( struct inode *inode ){
-	return false;
-}
-#endif
 
 #endif /* _LINUX_FS_H */

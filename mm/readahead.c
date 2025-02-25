@@ -113,7 +113,6 @@
  * ->read_folio() which may be less efficient.
  */
 
-#include "linux/fs.h"
 #include <linux/blkdev.h>
 #include <linux/kernel.h>
 #include <linux/dax.h>
@@ -207,10 +206,10 @@ void page_cache_ra_unbounded(struct readahead_control *ractl,
 		unsigned long nr_to_read, unsigned long lookahead_size)
 {
 	struct address_space *mapping = ractl->mapping;
-	struct inode *inode = mapping->host;
 	unsigned long ra_folio_index, index = readahead_index(ractl);
 	gfp_t gfp_mask = readahead_gfp_mask(mapping);
 	unsigned long mark, i = 0;
+	unsigned int min_order = mapping_min_folio_order(mapping);
 	unsigned int min_nrpages = mapping_min_folio_nrpages(mapping);
 
 	/*
@@ -262,14 +261,8 @@ void page_cache_ra_unbounded(struct readahead_control *ractl,
 			continue;
 		}
 
-		if( is_inode_have_mempolicy(inode) ){
-			folio = filemap_alloc_folio_mpol( inode , index + i , gfp_mask , 
-							mapping_min_folio_order(mapping));
-		}
-		else{
-			folio = filemap_alloc_folio(gfp_mask,
-							mapping_min_folio_order(mapping));
-		}
+		folio = filemap_alloc_folio_mpol(mapping, index + i, gfp_mask,
+						 min_order);
 		if (!folio)
 			break;
 
@@ -439,14 +432,8 @@ static inline int ra_alloc_folio(struct readahead_control *ractl, pgoff_t index,
 		pgoff_t mark, unsigned int order, gfp_t gfp)
 {
 	int err;
-	struct inode *inode = ractl->mapping->host;
-	struct folio *folio;
-	if( is_inode_have_mempolicy(inode) ){
-		folio = filemap_alloc_folio_mpol( inode , index , gfp , order );
-	}
-	else{
-		folio = filemap_alloc_folio(gfp, order);
-	}
+	struct folio *folio = filemap_alloc_folio_mpol(ractl->mapping, index,
+							gfp, order);
 
 	if (!folio)
 		return -ENOMEM;
@@ -747,7 +734,6 @@ void readahead_expand(struct readahead_control *ractl,
 		      loff_t new_start, size_t new_len)
 {
 	struct address_space *mapping = ractl->mapping;
-	struct inode *inode = ractl->mapping->host;
 	struct file_ra_state *ra = ractl->ra;
 	pgoff_t new_index, new_nr_pages;
 	gfp_t gfp_mask = readahead_gfp_mask(mapping);
@@ -768,13 +754,9 @@ void readahead_expand(struct readahead_control *ractl,
 
 		if (folio && !xa_is_value(folio))
 			return; /* Folio apparently present */
-        index = mapping_align_index(mapping, index);
-		if( is_inode_have_mempolicy(inode) ){
-			folio = filemap_alloc_folio_mpol( inode , index , gfp_mask , min_order );
-		}
-		else{
-			folio = filemap_alloc_folio(gfp_mask, min_order);
-		}
+		index = mapping_align_index(mapping, index);
+		folio = filemap_alloc_folio_mpol(mapping, index, gfp_mask,
+						 min_order);
 		if (!folio)
 			return;
 
@@ -802,13 +784,9 @@ void readahead_expand(struct readahead_control *ractl,
 		if (folio && !xa_is_value(folio))
 			return; /* Folio apparently present */
 
-        index = mapping_align_index(mapping, index);
-		if( is_inode_have_mempolicy(inode) ){
-			folio = filemap_alloc_folio_mpol( inode , index , gfp_mask , min_order );
-		}
-		else{
-			folio = filemap_alloc_folio(gfp_mask, min_order);
-		}
+		index = mapping_align_index(mapping, index);
+		folio = filemap_alloc_folio_mpol(mapping, index, gfp_mask,
+						 min_order);
 		if (!folio)
 			return;
 

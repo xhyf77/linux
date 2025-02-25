@@ -1011,12 +1011,15 @@ struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order)
 }
 EXPORT_SYMBOL(filemap_alloc_folio_noprof);
 
-struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t index, gfp_t gfp, unsigned int order)
+struct folio *
+filemap_alloc_folio_mpol_noprof(struct address_space *mapping, pgoff_t index,
+				gfp_t gfp, unsigned int order)
 {
 	int n;
 	struct folio *folio;
 	struct mempolicy *mpol;
 	pgoff_t ilx;
+
 	if (cpuset_do_page_mem_spread()) {
 		unsigned int cpuset_mems_cookie;
 		do {
@@ -1027,7 +1030,9 @@ struct folio *filemap_alloc_folio_mpol_noprof( struct inode *inode, pgoff_t inde
 
 		return folio;
 	}
-	mpol = get_page_cache_pgoff_policy( inode, index, order, &ilx);
+	mpol = get_page_cache_pgoff_policy(mapping->host, index, order, &ilx);
+	if (!mpol)
+		return filemap_alloc_folio_noprof(gfp, order);
 	folio = folio_alloc_mpol_noprof(gfp, order, mpol, ilx, numa_node_id());
 	mpol_cond_put(mpol);
 
@@ -1905,7 +1910,6 @@ struct folio *__filemap_get_folio(struct address_space *mapping, pgoff_t index,
 		fgf_t fgp_flags, gfp_t gfp)
 {
 	struct folio *folio;
-	struct inode *inode = mapping->host;
 repeat:
 	folio = filemap_get_entry(mapping, index);
 	if (xa_is_value(folio))
@@ -1971,12 +1975,8 @@ no_page:
 			err = -ENOMEM;
 			if (order > min_order)
 				alloc_gfp |= __GFP_NORETRY | __GFP_NOWARN;
-			if( is_inode_have_mempolicy(inode) ){
-				folio = filemap_alloc_folio_mpol( inode , index , alloc_gfp , order );
-			}
-			else{
-				folio = filemap_alloc_folio(alloc_gfp, order);
-			}
+			folio = filemap_alloc_folio_mpol(mapping, index,
+							 alloc_gfp, order);
 			if (!folio)
 				continue;
 
@@ -2495,13 +2495,9 @@ static int filemap_create_folio(struct file *file,
 	int error;
 	unsigned int min_order = mapping_min_folio_order(mapping);
 	pgoff_t index = (pos >> (PAGE_SHIFT + min_order)) << min_order;
-	struct inode *inode = mapping->host;
-	if( is_inode_have_mempolicy(inode) ){
-		folio = filemap_alloc_folio_mpol( inode , index , mapping_gfp_mask(mapping) , min_order );
-	}
-	else{
-		folio = filemap_alloc_folio(mapping_gfp_mask(mapping), min_order);
-	}
+
+	folio = filemap_alloc_folio_mpol(mapping, index,
+					 mapping_gfp_mask(mapping), min_order);
 	if (!folio)
 		return -ENOMEM;
 
@@ -3808,6 +3804,7 @@ static struct folio *do_read_cache_folio(struct address_space *mapping,
 		pgoff_t index, filler_t filler, struct file *file, gfp_t gfp)
 {
 	struct folio *folio;
+	unsigned int min_order = mapping_min_folio_order(mapping);
 	int err;
 
 	if (!filler)
@@ -3816,13 +3813,7 @@ repeat:
 	folio = filemap_get_folio(mapping, index);
 	if (IS_ERR(folio)) {
 		index = mapping_align_index(mapping, index);
-		struct inode *inode = mapping->host;
-		if( is_inode_have_mempolicy(inode) ){
-			folio = filemap_alloc_folio_mpol( inode , index , gfp , mapping_min_folio_order(mapping));
-		}
-		else{
-			folio = filemap_alloc_folio(gfp,mapping_min_folio_order(mapping));
-		}
+		folio = filemap_alloc_folio_mpol(mapping, index, gfp, min_order);
 		if (!folio)
 			return ERR_PTR(-ENOMEM);
 		err = filemap_add_folio(mapping, folio, index, gfp);

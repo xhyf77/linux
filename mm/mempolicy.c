@@ -405,6 +405,7 @@ static void mpol_rebind_policy(struct mempolicy *pol, const nodemask_t *newmask)
 void mpol_rebind_task(struct task_struct *tsk, const nodemask_t *new)
 {
 	mpol_rebind_policy(tsk->mempolicy, new);
+	mpol_rebind_policy(tsk->temp_mempolicy, new);
 }
 
 /*
@@ -887,7 +888,7 @@ out:
 static long do_set_mmap_policy(unsigned short mode, unsigned short flags,
 			     nodemask_t *nodes)
 {
-	struct mempolicy *new;
+	struct mempolicy *new, *old;
 	NODEMASK_SCRATCH(scratch);
 	int ret;
 
@@ -907,9 +908,11 @@ static long do_set_mmap_policy(unsigned short mode, unsigned short flags,
 		mpol_put(new);
 		goto out;
 	}
+	old = current->temp_mempolicy;
 	current->temp_mempolicy = new;
-
+	current->temp_mempolicy_pending = true;
 	task_unlock(current);
+	mpol_put(old);
 	ret = 0;
 out:
 	NODEMASK_SCRATCH_FREE(scratch);
@@ -2338,12 +2341,10 @@ struct page *alloc_pages_mpol_noprof(gfp_t gfp, unsigned int order,
 struct mempolicy *get_page_cache_pgoff_policy(struct inode *inode,
 			pgoff_t index, unsigned int order, pgoff_t *ilx)
 {
-	struct mempolicy *mpol;
 	/* Bias interleave by inode number to distribute better across nodes */
 	*ilx = inode->i_ino + (index >> order);
 
-	mpol = mpol_shared_policy_lookup(&inode->policy, index);
-	return mpol ? mpol : get_task_policy(current);
+	return mpol_shared_policy_lookup(&inode->i_mempolicy, index);
 }
 
 struct folio *folio_alloc_mpol_noprof(gfp_t gfp, unsigned int order,
@@ -2775,8 +2776,6 @@ struct mempolicy *mpol_shared_policy_lookup(struct shared_policy *sp,
 	struct mempolicy *pol = NULL;
 	struct sp_node *sn;
 
-	if (!sp->root.rb_node)
-		return NULL;
 	read_lock(&sp->lock);
 	sn = sp_lookup(sp, idx, idx+1);
 	if (sn) {
@@ -2920,6 +2919,7 @@ void mpol_put_task_policy(struct task_struct *task)
 	temp_pol = task->temp_mempolicy;
 	task->mempolicy = NULL;
 	task->temp_mempolicy = NULL;
+	task->temp_mempolicy_pending = false;
 	task_unlock(task);
 
 	mpol_put(pol);
@@ -3101,8 +3101,6 @@ void mpol_free_shared_policy(struct shared_policy *sp)
 	struct sp_node *n;
 	struct rb_node *next;
 
-	if (!sp->root.rb_node)
-		return;
 	write_lock(&sp->lock);
 	next = rb_first(&sp->root);
 	while (next) {

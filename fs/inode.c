@@ -186,7 +186,9 @@ int inode_init_always(struct super_block *sb, struct inode *inode)
 	inode->i_dir_seq = 0;
 	inode->i_rdev = 0;
 	inode->dirtied_when = 0;
-	atomic_set(&inode->i_fcount, 0);
+#ifdef CONFIG_NUMA
+	mpol_shared_policy_init(&inode->i_mempolicy, NULL);
+#endif
 
 #ifdef CONFIG_CGROUP_WRITEBACK
 	inode->i_wb_frn_winner = 0;
@@ -285,6 +287,9 @@ static struct inode *alloc_inode(struct super_block *sb)
 void __destroy_inode(struct inode *inode)
 {
 	BUG_ON(inode_has_buffers(inode));
+#ifdef CONFIG_NUMA
+	mpol_free_shared_policy(&inode->i_mempolicy);
+#endif
 	inode_detach_wb(inode);
 	security_inode_free(inode);
 	fsnotify_inode_delete(inode);

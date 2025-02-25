@@ -2303,6 +2303,7 @@ __latent_entropy struct task_struct *copy_process(
 #ifdef CONFIG_NUMA
 	p->mempolicy = mpol_dup(p->mempolicy);
 	p->temp_mempolicy = NULL;
+	p->temp_mempolicy_pending = false;
 	if (IS_ERR(p->mempolicy)) {
 		retval = PTR_ERR(p->mempolicy);
 		p->mempolicy = NULL;

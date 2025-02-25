@@ -1371,11 +1371,26 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	struct maple_tree mt_detach;
 	unsigned long end = addr + len;
 	bool writable_file_mapping = false;
+	bool skip_merge = false;
 	int error = -ENOMEM;
+#ifdef CONFIG_NUMA
+	struct mempolicy *next_policy = NULL;
+#endif
 	VMA_ITERATOR(vmi, mm, addr);
 	VMG_STATE(vmg, mm, &vmi, addr, end, vm_flags, pgoff);
-	vmg.policy = NULL;
 	vmg.file = file;
+#ifdef CONFIG_NUMA
+	task_lock(current);
+	if (current->temp_mempolicy_pending) {
+		next_policy = current->temp_mempolicy;
+		current->temp_mempolicy = NULL;
+		current->temp_mempolicy_pending = false;
+		skip_merge = true;
+	}
+	task_unlock(current);
+	if (next_policy)
+		vmg.policy = next_policy;
+#endif
 	/* Find the first overlapping VMA */
 	vma = vma_find(&vmi, end);
 	init_vma_munmap(&vms, &vmi, vma, addr, end, uf, /* unlock = */ false);
@@ -1413,11 +1428,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vmg.flags = vm_flags;
 	}
 
-#ifdef CONFIG_NUMA
-	if( is_temppolicy_null(current) )
-		vmg.policy = current->temp_mempolicy;
-#endif
-	vma = vma_merge_new_range(&vmg);
+	vma = skip_merge ? NULL : vma_merge_new_range(&vmg);
 	if (vma)
 		goto expanded;
 	/*
@@ -1466,7 +1477,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 * If vm_flags changed after call_mmap(), we should try merge
 		 * vma again as we may succeed this time.
 		 */
-		if (unlikely(vm_flags != vma->vm_flags && vmg.prev)) {
+		if (unlikely(vm_flags != vma->vm_flags && vmg.prev) &&
+		    !skip_merge) {
 			vmg.flags = vma->vm_flags;
 			/* If this fails, state is reset ready for a reattempt. */
 			merge = vma_merge_new_range(&vmg);
@@ -1498,16 +1510,6 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vma_set_anonymous(vma);
 	}
 
-#ifdef CONFIG_NUMA
-	if (vma->vm_ops && vma->vm_ops->set_policy && vmg.policy != NULL ) {
-		error = vma->vm_ops->set_policy(vma, vmg.policy);
-		if (error)
-			goto close_and_free_vma;
-	}
-	vma->vm_policy = vmg.policy; 
-	mpol_get(vma->vm_policy);
-#endif
-
 	if (map_deny_write_exec(vma, vma->vm_flags)) {
 		error = -EACCES;
 		goto close_and_free_vma;
@@ -1521,6 +1523,29 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	error = -ENOMEM;
 	if (vma_iter_prealloc(&vmi, vma))
 		goto close_and_free_vma;
+
+#ifdef CONFIG_NUMA
+	if (skip_merge) {
+		struct mempolicy *vma_policy = mpol_dup(next_policy);
+
+		if (IS_ERR(vma_policy)) {
+			error = PTR_ERR(vma_policy);
+			goto close_and_free_vma;
+		}
+		error = 0;
+		if (vma->vm_ops && vma->vm_ops->set_page_cache_policy) {
+			error = vma->vm_ops->set_page_cache_policy(vma,
+							     vma_policy);
+		} else if (vma->vm_ops && vma->vm_ops->set_policy) {
+			error = vma->vm_ops->set_policy(vma, vma_policy);
+		}
+		if (error) {
+			mpol_put(vma_policy);
+			goto close_and_free_vma;
+		}
+		vma->vm_policy = vma_policy;
+	}
+#endif
 
 	/* Lock the VMA since it is modified after insertion into VMA tree */
 	vma_start_write(vma);
@@ -1570,8 +1595,7 @@ expanded:
 
 	vma_set_page_prot(vma);
 #ifdef CONFIG_NUMA
-	mpol_put(current->temp_mempolicy);
-	current->temp_mempolicy = NULL;
+	mpol_put(next_policy);
 #endif
 	validate_mm(mm);
 	return addr;
@@ -1600,6 +1624,9 @@ unacct_error:
 abort_munmap:
 	vms_abort_munmap_vmas(&vms, &mas_detach);
 gather_failed:
+#ifdef CONFIG_NUMA
+	mpol_put(next_policy);
+#endif
 	validate_mm(mm);
 	return error;
 }
